@@ -22,7 +22,7 @@ enum E {
 fn test_i32() {
     let s = SI32 { value: std::i32::MAX };
     let e = E::SI32(s);
-    let v = serde_json::to_string(&e).unwrap();
+    let v = dbg!(serde_json::to_string(&e).unwrap());
     let e = serde_json::from_str::<E>(&v).unwrap();
 
     match e {
@@ -36,7 +36,7 @@ fn test_i32() {
 fn test_u128() {
     let s = SU128 { value: std::u128::MAX };
     let e = E::SU128(s);
-    let v = serde_json::to_string(&e).unwrap();
+    let v = dbg!(serde_json::to_string(&e).unwrap());
     let e = serde_json::from_str::<E>(&v).unwrap();
 
     match e {

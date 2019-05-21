@@ -10,6 +10,7 @@ use serde::{de, ser};
 use std::borrow::Borrow;
 use std::fmt::{self, Debug};
 use std::hash::Hash;
+use serde::Deserializer;
 use std::iter::FromIterator;
 use std::ops;
 use value::Value;
@@ -305,7 +306,81 @@ impl ser::Serialize for Map<String, Value> {
     }
 }
 
+#[cfg(feature = "arbitrary_precision")]
+fn invalid_number() -> Error {
+    Error::syntax(ErrorCode::InvalidNumber, 0, 0)
+}
+
+macro_rules! deserialize_any {
+    (@expand [$($num_string:tt)*]) => {
+        #[cfg(not(feature = "arbitrary_precision"))]
+        #[inline]
+        fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
+        where
+            V: serde::de::Visitor<'de>,
+        {
+            match self.n {
+                N::PosInt(u) => visitor.visit_u64(u),
+                N::NegInt(i) => visitor.visit_i64(i),
+                N::Float(f) => visitor.visit_f64(f),
+            }
+        }
+
+        #[cfg(feature = "arbitrary_precision")]
+        #[inline]
+        fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
+            where V: serde::de::Visitor<'de>
+        {
+            if let Some(u) = self.as_u64() {
+                return visitor.visit_u64(u);
+            } else if let Some(i) = self.as_i64() {
+                return visitor.visit_i64(i);
+            } else if let Some(f) = self.as_f64() {
+                if ryu::Buffer::new().format(f) == self.n || f.to_string() == self.n {
+                    return visitor.visit_f64(f);
+                }
+            }
+
+            visitor.visit_map(number::NumberDeserializer {
+                number: Some(self.$($num_string)*),
+            })
+        }
+    };
+
+    (owned) => {
+        deserialize_any!(@expand [n]);
+    };
+
+    (ref) => {
+        deserialize_any!(@expand [n.clone()]);
+    };
+}
+
+
+macro_rules! deserialize_map {
+    ($deserialize:ident => $visit:ident) => {
+        #[cfg(not(feature = "arbitrary_precision"))]
+        fn $deserialize<V>(self, visitor: V) -> Result<V::Value, Error>
+        where
+            V: Visitor<'de>,
+        {
+            self.deserialize_any(visitor)
+        }
+
+        #[cfg(feature = "arbitrary_precision")]
+        fn $deserialize<V>(self, visitor: V) -> Result<V::Value, Error>
+        where
+            V: de::Visitor<'de>,
+        {
+            self.deserialize_any(visitor)
+        }
+    }
+}
+
 impl<'de> de::Deserialize<'de> for Map<String, Value> {
+
+     deserialize_any!(owned);
+
     #[inline]
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -345,6 +420,9 @@ impl<'de> de::Deserialize<'de> for Map<String, Value> {
 
         deserializer.deserialize_map(Visitor)
     }
+
+    deserialize_map!(deserialize_i128 => visit_i128);
+    deserialize_map!(deserialize_u128 => visit_u128);
 }
 
 impl FromIterator<(String, Value)> for Map<String, Value> {

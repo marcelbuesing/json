@@ -358,6 +358,12 @@ impl<'de> Deserialize<'de> for Number {
 
             #[cfg(feature = "arbitrary_precision")]
             #[inline]
+            fn visit_u128<E>(self, value: u128) -> Result<Number, E> {
+                Ok(value.into())
+            }
+
+            #[cfg(feature = "arbitrary_precision")]
+            #[inline]
             fn visit_map<V>(self, mut visitor: V) -> Result<Number, V::Error>
             where
                 V: de::MapAccess<'de>,
@@ -529,10 +535,9 @@ impl<'de> Deserializer<'de> for Number {
     deserialize_number!(deserialize_f32 => visit_f32);
     deserialize_number!(deserialize_f64 => visit_f64);
 
-    serde_if_integer128! {
         deserialize_number!(deserialize_i128 => visit_i128);
         deserialize_number!(deserialize_u128 => visit_u128);
-    }
+
 
     forward_to_deserialize_any! {
         bool char str string bytes byte_buf option unit unit_struct
@@ -557,10 +562,10 @@ impl<'de, 'a> Deserializer<'de> for &'a Number {
     deserialize_number!(deserialize_f32 => visit_f32);
     deserialize_number!(deserialize_f64 => visit_f64);
 
-    serde_if_integer128! {
+
         deserialize_number!(deserialize_i128 => visit_i128);
         deserialize_number!(deserialize_u128 => visit_u128);
-    }
+
 
     forward_to_deserialize_any! {
         bool char str string bytes byte_buf option unit unit_struct
